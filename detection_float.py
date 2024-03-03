@@ -5,7 +5,6 @@ from datetime import datetime
 import numpy as np
 import tflite_runtime.interpreter as tflite
 from PIL import Image
-import paho.mqtt.client as mqtt
 
 # Setup GPIO for button and LED
 button_pin = 2  # Update this pin according to your setup
@@ -13,14 +12,6 @@ led_pin = 17    # Update this pin according to your setup
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(button_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.setup(led_pin, GPIO.OUT)
-
-# MQTT Broker Settings
-MQTT_BROKER = "10.0.0.120"
-MQTT_PORT = 1883
-MQTT_TOPIC = "plate_detection_results"
-
-# Initialize MQTT client
-mqtt_client = mqtt.Client()
 
 # Function to capture image
 def capture_image(output_file):
@@ -53,6 +44,7 @@ def preprocess_image(image_path, input_size):
         input_data = np.array(img, dtype=np.float32) / 255.0
     # Add a batch dimension
     return np.expand_dims(input_data, axis=0)
+
 
 # Function to run inference on the image
 def run_inference(interpreter, image_data):
@@ -87,12 +79,6 @@ def interpret_results(output_data):
     print(f"Predicted: {predicted_label} with confidence {confidence:.2f}")
     return predicted_label, confidence
 
-# Function to send result to MQTT broker
-def send_result_to_mqtt(predicted_label, confidence):
-    mqtt_client.connect(MQTT_BROKER, MQTT_PORT)
-    mqtt_client.publish(MQTT_TOPIC, f"Predicted: {predicted_label} with confidence {confidence:.2f}")
-    mqtt_client.disconnect()
-
 if __name__ == "__main__":
     print("Ready to capture images. Press the button.")
 
@@ -119,7 +105,6 @@ if __name__ == "__main__":
                 preprocessed_image = preprocess_image(output_file, input_size)
                 results = run_inference(interpreter, preprocessed_image)  # Run inference
                 predicted_label, confidence = interpret_results(results)  # Process the results
-                send_result_to_mqtt(predicted_label, confidence)  # Send result to MQTT broker
 
                 GPIO.output(led_pin, GPIO.LOW)  # Turn off LED
                 time.sleep(2)  # Wait for 2 seconds between captures
