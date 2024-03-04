@@ -21,10 +21,9 @@ GPIO.setmode(GPIO.BCM)
 GPIO.setup(button_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.setup(led_pin, GPIO.OUT)
 
-# Function to capture image with specified resolution
+# Function to capture image
 def capture_image(output_file):
     try:
-        # Added width and height parameters to the command
         result = subprocess.run(["libcamera-still", "-o", output_file], check=True)
         if result.returncode == 0:
             print(f"Image successfully captured and saved as {output_file}")
@@ -45,7 +44,7 @@ def load_tflite_model():
     return interpreter
 
 # Function to preprocess the image for the model
-def preprocess_image(image_path, input_size=(96, 96)):  # Adjusted input size to match model's expectation
+def preprocess_image(image_path, input_size = (96,96)):
     with Image.open(image_path) as img:
         img = img.resize(input_size, Image.Resampling.LANCZOS)
         img = img.convert('RGB')
@@ -53,6 +52,7 @@ def preprocess_image(image_path, input_size=(96, 96)):  # Adjusted input size to
         input_data = np.array(img, dtype=np.float32) / 255.0
     # Add a batch dimension
     return np.expand_dims(input_data, axis=0)
+
 
 # Function to run inference on the image
 def run_inference(interpreter, image_data):
@@ -71,11 +71,10 @@ class_labels = ['Compost Plate', 'No Plate', 'Trash Plate', 'Uncertain']
 CONFIDENCE_THRESHOLD = 0.7  # This means 70%
 
 # Function to interpret and process inference results
-# Function to interpret and process inference results
 def interpret_results(output_data):
     probabilities = np.squeeze(output_data)
     predicted_class_index = np.argmax(probabilities)
-    confidence = float(probabilities[predicted_class_index])  # Convert to Python float
+    confidence = probabilities[predicted_class_index]
 
     # Check if the confidence meets the threshold
     if confidence < CONFIDENCE_THRESHOLD:
@@ -88,14 +87,15 @@ def interpret_results(output_data):
     print(f"Predicted: {predicted_label} with confidence {confidence:.2f}")
     return predicted_label, confidence
 
-
 # Function to upload result to Firebase Realtime Database
 def upload_result_to_firebase(predicted_label):
     result = {
-        'predicted_label': predicted_label
+        'predicted_label': predicted_label,
+        #'confidence': confidence,
+        #'timestamp': datetime.now().isoformat()
     }
     db.reference('predictions').push(result)
-    print("Uploaded result to Firebase. Ready to capture images. Press the button.")
+    print("Uploaded result to Firebase")
 
 if __name__ == "__main__":
     print("Ready to capture images. Press the button.")
@@ -107,23 +107,22 @@ if __name__ == "__main__":
             if button_state == False and debounce(button_pin):
                 GPIO.output(led_pin, GPIO.HIGH)  # Turn on LED
 
-                timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                timestamp = datetime.now().strftime(
+                    "%Y-%m-%d_%H-%M-%S")
                 output_directory = "/home/gwenzhang/Documents/photos/"
                 output_file = f"{output_directory}photo_{timestamp}.jpg"
 
                 capture_image(output_file)
                 preprocessed_image = preprocess_image(output_file, (96, 96))  # Example input size
                 results = run_inference(interpreter, preprocessed_image)
-                predicted_label, confidence = interpret_results(results)  # Correctly capture both return values
+                predicted_label = interpret_results(results)
 
                 # Upload result to Firebase
-                upload_result_to_firebase(predicted_label)  # Pass only predicted_label
-                
+                upload_result_to_firebase(predicted_label)
+
                 GPIO.output(led_pin, GPIO.LOW)  # Turn off LED
                 time.sleep(2)  # Wait for 2 seconds between captures
 
     except KeyboardInterrupt:
         print("Exiting...")
         GPIO.cleanup()
-
-

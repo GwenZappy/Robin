@@ -5,6 +5,8 @@ from datetime import datetime
 import numpy as np
 import tflite_runtime.interpreter as tflite
 from PIL import Image
+import firebase_admin
+from firebase_admin import credentials, db
 
 
 # Setup GPIO for button and LED
@@ -14,6 +16,12 @@ GPIO.setmode(GPIO.BCM)
 GPIO.setup(button_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.setup(led_pin, GPIO.OUT)
 
+
+# Initialize Firebase Admin
+cred = credentials.Certificate("robin-3d81f-firebase-adminsdk-vzsly-04e666e175.json")
+firebase_admin.initialize_app(cred, {
+    'databaseURL': 'https://robin-3d81f-default-rtdb.firebaseio.com'  # Your Realtime Database URL
+})
 
 # Function to capture image
 def capture_image(output_file):
@@ -47,7 +55,6 @@ def preprocess_image(image_path, input_size):
         input_data = np.array(img, dtype=np.float32) / 255.0
     # Add a batch dimension
     return np.expand_dims(input_data, axis=0)
-
 
 # Function to run inference on the image
 def run_inference(interpreter, image_data):
@@ -85,8 +92,6 @@ def interpret_results(output_data):
 def upload_result_to_firebase(predicted_label, confidence):
     result = {
         'predicted_label': predicted_label,
-        'confidence': float(confidence),  # Convert to native Python float
-        'timestamp': datetime.now().isoformat()
     }
     db.reference('path/to/your/data').push(result)
 
@@ -117,7 +122,7 @@ if __name__ == "__main__":
                 # Make sure to pass the correct data type for preprocessing
                 preprocessed_image = preprocess_image(output_file, input_size)
                 results = run_inference(interpreter, preprocessed_image)  # Run inference
-                predicted_label, confidence = interpret_results(results)  # Process the results
+                predicted_label= interpret_results(results)  # Process the results
                 
 
                 GPIO.output(led_pin, GPIO.LOW)  # Turn off LED
